@@ -25,6 +25,9 @@ class Program
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int SendMessage(IntPtr hWnd, uint Msg, int wParam, int lParam);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
     static void Main(string[] args)
     {
         // Check if two arguments are provided
@@ -59,12 +62,34 @@ class Program
                     popupFound = true;
                     Console.WriteLine($"Popup found: {windowText}");
 
+                    // Bring the popup to the foreground
+                    Console.WriteLine("Attempting to bring the popup window to the foreground...");
+                    Thread.Sleep(500);
+                    if (SetForegroundWindow(child))
+                    {
+                        Console.WriteLine("Popup window brought to the foreground.");
+                        Thread.Sleep(500);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to bring popup window to the foreground.");
+                    }
+
                     IntPtr subChild = GetWindow(child, GW_CHILD);
                     bool buttonClicked = false;
+
+                    // List to store all found button names
+                    var foundButtons = new List<string>();
 
                     while (subChild != IntPtr.Zero)
                     {
                         string subWindowText = HandleToText(subChild);
+
+                        if (!string.IsNullOrEmpty(subWindowText))
+                        {
+                            // Add the button text to the list
+                            foundButtons.Add(subWindowText);
+                        }
 
                         if (subWindowText == buttonText) // Compare with user input
                         {
@@ -72,8 +97,8 @@ class Program
 
                             // Simulate button click
                             SendMessage(subChild, BM_CLICK, 0, 0);
-                            Thread.Sleep(retryDelayMilliseconds);
-                            SendMessage(subChild, BM_CLICK, 0, 0);
+                            Thread.Sleep(500);
+
                             Console.WriteLine("Button clicked!");
 
                             buttonClicked = true;
@@ -85,7 +110,11 @@ class Program
 
                     if (!buttonClicked)
                     {
-                        Console.WriteLine("Button not found.");
+                        Console.WriteLine("Button not found. Here are all the buttons found in the popup:");
+                        foreach (string btn in foundButtons)
+                        {
+                            Console.WriteLine($"- {btn}");
+                        }
                     }
 
                     break;
