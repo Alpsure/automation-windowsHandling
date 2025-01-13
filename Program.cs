@@ -1,7 +1,10 @@
+// program.exe "window name" "button name" optional_maxRetries optional_sleepAfterAction
+
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Collections.Generic;
 
 class Program
 {
@@ -30,24 +33,28 @@ class Program
 
     static void Main(string[] args)
     {
-        // Check if two arguments are provided
+        // Check if at least two arguments are provided
         if (args.Length < 2)
         {
-            Console.WriteLine("Usage: PopupHandler.exe <PopupTitle> <ButtonText>");
+            Console.WriteLine("Usage: PopupHandler.exe <PopupTitle> <ButtonText> [maxTries] [sleepAfterAction]");
             return;
         }
 
         string popupTitle = args[0];
         string buttonText = args[1];
 
-        // Retry mechanism
-        const int maxRetrySeconds = 5; // Total time to search for the popup
-        const int retryDelayMilliseconds = 1000; // Time to wait between retries
-        int elapsedMilliseconds = 0;
+        const int retryDelayMilliseconds = 1000;
 
+        // Parse optional arguments or set default values
+        int maxTries = args.Length > 2 && int.TryParse(args[2], out int tries) ? tries : 10;
+        int sleepAfterAction = args.Length > 3 && int.TryParse(args[3], out int sleep) ? sleep : 500;
+
+        Console.WriteLine($"PopupTitle: {popupTitle}, ButtonText: {buttonText}, maxTries: {maxTries}, sleepAfterAction: {sleepAfterAction}ms");
+
+        int elapsedTries = 0;
         bool popupFound = false;
 
-        while (elapsedMilliseconds < maxRetrySeconds * 1000)
+        while (elapsedTries < maxTries)
         {
             // Start looking for the popup window
             IntPtr desktop = GetDesktopWindow();
@@ -57,18 +64,18 @@ class Program
             {
                 string windowText = HandleToText(child);
 
-                if (windowText == popupTitle) // Compare with user input
+                // Console.WriteLine($"Checking window with title: {windowText}"); // Debug log to see all window titles
+
+                if (!string.IsNullOrEmpty(windowText) && windowText.Contains(popupTitle, StringComparison.OrdinalIgnoreCase))
                 {
                     popupFound = true;
                     Console.WriteLine($"Popup found: {windowText}");
 
                     // Bring the popup to the foreground
-                    Console.WriteLine("Attempting to bring the popup window to the foreground...");
-                    Thread.Sleep(500);
                     if (SetForegroundWindow(child))
                     {
-                        Console.WriteLine("Popup window brought to the foreground.");
-                        Thread.Sleep(500);
+                        Console.WriteLine("Popup window brought to the foreground successfully.");
+                        Thread.Sleep(sleepAfterAction);
                     }
                     else
                     {
@@ -78,8 +85,7 @@ class Program
                     IntPtr subChild = GetWindow(child, GW_CHILD);
                     bool buttonClicked = false;
 
-                    // List to store all found button names
-                    var foundButtons = new List<string>();
+                    var foundButtons = new List<string>(); // To store all found button names
 
                     while (subChild != IntPtr.Zero)
                     {
@@ -87,17 +93,16 @@ class Program
 
                         if (!string.IsNullOrEmpty(subWindowText))
                         {
-                            // Add the button text to the list
-                            foundButtons.Add(subWindowText);
+                            foundButtons.Add(subWindowText); // Collect button names
                         }
 
-                        if (subWindowText == buttonText) // Compare with user input
+                        if (subWindowText == buttonText)
                         {
                             Console.WriteLine($"Button found: {subWindowText}");
 
                             // Simulate button click
                             SendMessage(subChild, BM_CLICK, 0, 0);
-                            Thread.Sleep(500);
+                            Thread.Sleep(sleepAfterAction);
 
                             Console.WriteLine("Button clicked!");
 
@@ -128,14 +133,14 @@ class Program
 
             // Retry delay
             Thread.Sleep(retryDelayMilliseconds);
-            elapsedMilliseconds += retryDelayMilliseconds;
+            elapsedTries++;
 
-            Console.WriteLine($"Retrying... ({elapsedMilliseconds / 1000}s elapsed)");
+            Console.WriteLine($"Retrying... ({elapsedTries}/{maxTries} attempts)");
         }
 
         if (!popupFound)
         {
-            Console.WriteLine("Popup not found within the timeout period.");
+            Console.WriteLine("Popup not found within the maximum number of retries.");
         }
     }
 
